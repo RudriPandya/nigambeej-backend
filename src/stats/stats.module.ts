@@ -1,0 +1,13 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { HomepageStat } from '../entities/homepage-stat.entity';
+import { StatsController } from './stats.controller';
+import { StatsService } from './stats.service';
+import { AuthModule } from '../auth/auth.module';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([HomepageStat]), AuthModule],
+  controllers: [StatsController],
+  providers: [StatsService],
+})
+export class StatsModule {}
