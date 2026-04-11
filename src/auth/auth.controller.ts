@@ -12,7 +12,7 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const isProd = process.env.NODE_ENV === 'production';
-    const domain = isProd ? '.nigambeej.com' : 'localhost';
+    const domain = isProd ? '.lightgrey-barracuda-583570.hostingersite.com' : 'localhost';
     const cookieOptions = {
       httpOnly: true,
       sameSite: isProd ? 'none' : 'lax',
@@ -31,7 +31,7 @@ export class AuthController {
   @HttpCode(200)
   async logout(@Res({ passthrough: true }) res: Response) {
     const isProd = process.env.NODE_ENV === 'production';
-    const domain = isProd ? '.nigambeej.com' : 'localhost';
+    const domain = isProd ? '.lightgrey-barracuda-583570.hostingersite.com' : 'localhost';
     res.clearCookie('access_token', {
       path: '/',
       domain,
