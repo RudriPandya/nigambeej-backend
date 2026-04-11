@@ -15,14 +15,21 @@ import { BlogPost } from '../entities/blog-post.entity';
 import { BlogPostTranslation } from '../entities/blog-post-translation.entity';
 
 export async function runSeed(ds: DataSource) {
-  // Admin user
+  const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@nigambeej.com';
+  const adminPass  = process.env.ADMIN_PASS  ?? 'Admin@123';
+  const adminName  = process.env.ADMIN_NAME  ?? 'Admin';
+
+  if (adminPass === 'Admin@123') {
+    console.warn('⚠  Using default admin password. Set ADMIN_PASS env var before deploying to production.');
+  }
+
   const userRepo = ds.getRepository(AdminUser);
-  const existing = await userRepo.findOne({ where: { email: 'admin@nigambeej.com' } });
+  const existing = await userRepo.findOne({ where: { email: adminEmail } });
   if (!existing) {
     await userRepo.save(userRepo.create({
-      email: 'admin@nigambeej.com',
-      password: await bcrypt.hash('Admin@123', 10),
-      name: 'Admin',
+      email: adminEmail,
+      password: await bcrypt.hash(adminPass, 10),
+      name: adminName,
       role: 'admin',
     }));
     console.log('✓ Admin user seeded');

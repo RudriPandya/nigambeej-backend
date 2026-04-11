@@ -20,9 +20,13 @@ const DB_USER = process.env.DB_USER ?? 'root';
 const DB_PASS = process.env.DB_PASS ?? '';
 const DB_NAME = process.env.DB_NAME ?? 'nigam_beej_db';
 
-const ADMIN_EMAIL = 'admin@nigambeej.com';
-const ADMIN_PASS  = 'Admin@123';
-const ADMIN_NAME  = 'Admin';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? 'admin@nigambeej.com';
+const ADMIN_PASS  = process.env.ADMIN_PASS  ?? 'Admin@123';
+const ADMIN_NAME  = process.env.ADMIN_NAME  ?? 'Admin';
+
+if (ADMIN_PASS === 'Admin@123') {
+  console.warn('⚠  Using default admin password. Set ADMIN_PASS env var before deploying to production.');
+}
 
 async function run() {
   // ── Step 1: connect without a database to create it if needed ──
