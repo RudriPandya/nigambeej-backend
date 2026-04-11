@@ -3,6 +3,7 @@ import type { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { LoginDto } from './login.dto';
+import { getAuthCookieClearOptions, getAuthCookieSetOptions } from './auth-cookie-options';
 
 @Controller('auth')
 export class AuthController {
@@ -11,33 +12,15 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const isProd = process.env.NODE_ENV === 'production';
-    const domain = isProd ? '.lightgrey-barracuda-583570.hostingersite.com' : 'localhost';
-    const cookieOptions = {
-      httpOnly: true,
-      sameSite: isProd ? 'none' : 'lax',
-      secure: isProd,
-      maxAge: 24 * 60 * 60 * 1000,
-      path: '/',
-      domain,
-    } as const;
-
     const { token, user } = await this.authService.login(dto.email, dto.password);
-    res.cookie('access_token', token, cookieOptions);
+    res.cookie('access_token', token, getAuthCookieSetOptions());
     return { success: true, user };
   }
 
   @Post('logout')
   @HttpCode(200)
   async logout(@Res({ passthrough: true }) res: Response) {
-    const isProd = process.env.NODE_ENV === 'production';
-    const domain = isProd ? '.lightgrey-barracuda-583570.hostingersite.com' : 'localhost';
-    res.clearCookie('access_token', {
-      path: '/',
-      domain,
-      sameSite: isProd ? 'none' : 'lax',
-      secure: isProd,
-    });
+    res.clearCookie('access_token', getAuthCookieClearOptions());
     return { success: true };
   }
 
