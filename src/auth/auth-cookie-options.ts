@@ -4,8 +4,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Auth cookie domain for split frontend/API hosts:
- * set COOKIE_DOMAIN to the registrable parent, e.g. `.hostingersite.com` or `.nigambeej.com`,
- * so `Set-Cookie` from the API is visible to both subdomains.
+ * set COOKIE_DOMAIN to the registrable parent, e.g. `.hostingersite.com` (API preview + cookie scope).
+ *
+ * Production uses SameSite=None + Secure so credentialed requests work when the UI is on a
+ * different site than the API (e.g. https://nigambeej.com → https://*.hostingersite.com).
+ * SameSite=Lax would NOT send the cookie on those cross-site fetches → 401 on /auth/me.
  */
 function normalizeCookieDomain(raw: string | undefined): string | undefined {
   const t = raw?.trim();
@@ -32,9 +35,8 @@ export function getAuthCookieSetOptions(): CookieOptions {
     maxAge: DAY_MS,
     path: '/',
     secure: true,
-    ...(domain
-      ? { domain, sameSite: 'lax' as const }
-      : { sameSite: 'none' as const }),
+    sameSite: 'none',
+    ...(domain ? { domain } : {}),
   };
 }
 
@@ -57,8 +59,7 @@ export function getAuthCookieClearOptions(): Pick<
   return {
     path: '/',
     secure: true,
-    ...(domain
-      ? { domain, sameSite: 'lax' as const }
-      : { sameSite: 'none' as const }),
+    sameSite: 'none',
+    ...(domain ? { domain } : {}),
   };
 }
