@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BlogPost } from '../entities/blog-post.entity';
 import { BlogPostTranslation } from '../entities/blog-post-translation.entity';
+
+const LANGS = ['en', 'hi', 'gu'] as const;
 
 @Injectable()
 export class BlogService {
@@ -11,33 +13,67 @@ export class BlogService {
     @InjectRepository(BlogPostTranslation) private readonly translationRepo: Repository<BlogPostTranslation>,
   ) {}
 
-  private parseTranslations(raw: any): Record<string, any> | null {
+  private parseTranslations(raw: unknown): Record<string, Record<string, string>> | null {
     if (!raw) return null;
-    if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return null; } }
-    if (typeof raw === 'object') return raw;
+    if (typeof raw === 'string') {
+      try {
+        const p = JSON.parse(raw) as Record<string, Record<string, string>>;
+        return typeof p === 'object' && p !== null ? p : null;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof raw === 'object') return raw as Record<string, Record<string, string>>;
     return null;
   }
 
-  private async saveTranslations(post: BlogPost, translations: Record<string, any>) {
+  private validateEnglishBlock(translations: Record<string, Record<string, string>>): void {
+    const en = translations.en;
+    if (!en) {
+      throw new BadRequestException('English translation is required');
+    }
+    const title = (en.title ?? '').trim();
+    const excerpt = (en.excerpt ?? '').trim();
+    const content = (en.content ?? '').trim();
+    if (!title) throw new BadRequestException('English title is required');
+    if (!excerpt) throw new BadRequestException('English excerpt is required');
+    if (!content) throw new BadRequestException('English content is required');
+  }
+
+  private async assertSlugUnique(slug: string, excludeId?: number): Promise<void> {
+    const existing = await this.repo.findOne({ where: { slug } });
+    if (existing && (excludeId === undefined || existing.id !== excludeId)) {
+      throw new BadRequestException('Slug is already in use');
+    }
+  }
+
+  private async saveTranslations(post: BlogPost, translations: Record<string, Record<string, string>>) {
     for (const lang of Object.keys(translations)) {
       const t = translations[lang];
-      if (!t?.title) continue;
+      if (!t?.title?.trim()) continue;
       const existing = await this.translationRepo.findOne({ where: { post: { id: post.id }, lang } });
       if (existing) {
-        existing.title   = t.title   ?? existing.title;
+        existing.title = t.title ?? existing.title;
         existing.excerpt = t.excerpt ?? existing.excerpt;
         existing.content = t.content ?? existing.content;
         await this.translationRepo.save(existing);
       } else {
         await this.translationRepo.save(
-          this.translationRepo.create({ post, lang, title: t.title, excerpt: t.excerpt ?? '', content: t.content ?? '' }),
+          this.translationRepo.create({
+            post,
+            lang,
+            title: t.title,
+            excerpt: t.excerpt ?? '',
+            content: t.content ?? '',
+          }),
         );
       }
     }
   }
 
   async findAll(lang = 'en', page = 1, limit = 9) {
-    const [posts, total] = await this.repo.createQueryBuilder('p')
+    const [posts, total] = await this.repo
+      .createQueryBuilder('p')
       .leftJoinAndSelect('p.translations', 'pt', 'pt.lang = :lang', { lang })
       .where('p.isPublished = true')
       .orderBy('p.publishedAt', 'DESC')
@@ -54,38 +90,114 @@ export class BlogService {
     return this.format(p, lang);
   }
 
-  async findAllAdmin() {
-    return this.repo.find({ relations: ['translations'], order: { createdAt: 'DESC' } });
+  async findAllAdmin(page = 1, limit = 10) {
+    const take = Math.min(1000, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * take;
+
+    const total = await this.repo.count();
+
+    const idSlice = await this.repo.find({
+      select: { id: true },
+      order: { createdAt: 'DESC' },
+      skip,
+      take,
+    });
+    const ids = idSlice.map((p) => p.id);
+
+    let data: BlogPost[] = [];
+    if (ids.length > 0) {
+      const rows = await this.repo.find({
+        where: { id: In(ids) },
+        relations: ['translations'],
+      });
+      const orderMap = new Map(ids.map((id, i) => [id, i]));
+      rows.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+      data = rows;
+    }
+
+    return {
+      data,
+      total,
+      page: safePage,
+      limit: take,
+    };
   }
 
   async findOneAdmin(id: number) {
     return this.repo.findOne({ where: { id }, relations: ['translations'] });
   }
 
-  async create(data: any) {
+  async create(data: Record<string, unknown>) {
+    const slug = String(data.slug ?? '').trim();
+    if (!slug) throw new BadRequestException('Slug is required');
+
     const translations = this.parseTranslations(data.translations);
+    if (!translations) throw new BadRequestException('Translations are required');
+    this.validateEnglishBlock(translations);
+
+    const coverImage = (data.coverImage as string) ?? '';
+    if (!coverImage.trim()) {
+      throw new BadRequestException('Cover image is required');
+    }
+
+    await this.assertSlugUnique(slug);
+
+    const published =
+      data.isPublished === 'true' ||
+      data.isPublished === true ||
+      data.published === 'true' ||
+      data.published === true;
+
     const post = this.repo.create({
-      slug:        data.slug,
-      coverImage:  data.coverImage ?? null,
-      isPublished: data.isPublished === 'true' || data.isPublished === true,
+      slug,
+      coverImage,
+      isPublished: !!published,
     }) as BlogPost;
     if (post.isPublished) post.publishedAt = new Date();
     await this.repo.save(post);
-    if (translations) await this.saveTranslations(post, translations);
+    await this.saveTranslations(post, translations);
     return this.repo.findOne({ where: { id: post.id }, relations: ['translations'] });
   }
 
-  async update(id: number, data: any) {
+  async update(id: number, data: Record<string, unknown>) {
     const post = await this.repo.findOne({ where: { id } });
     if (!post) throw new NotFoundException('Post not found');
 
     const translations = this.parseTranslations(data.translations);
-    if (data.slug)       post.slug        = data.slug;
-    if (data.coverImage) post.coverImage  = data.coverImage;
-    post.isPublished = data.isPublished === 'true' || data.isPublished === true;
+    if (translations) {
+      this.validateEnglishBlock(translations);
+    } else {
+      throw new BadRequestException('Translations are required');
+    }
+
+    if (data.slug !== undefined) {
+      const slug = String(data.slug).trim();
+      if (!slug) throw new BadRequestException('Slug cannot be empty');
+      await this.assertSlugUnique(slug, id);
+      post.slug = slug;
+    }
+
+    const incomingCover = data.coverImage as string | undefined;
+    if (incomingCover !== undefined && incomingCover !== '') {
+      post.coverImage = incomingCover;
+    }
+    if (!post.coverImage || !String(post.coverImage).trim()) {
+      throw new BadRequestException('Cover image is required');
+    }
+
+    const published =
+      data.isPublished !== undefined || data.published !== undefined
+        ? data.isPublished === 'true' ||
+          data.isPublished === true ||
+          data.published === 'true' ||
+          data.published === true
+        : post.isPublished;
+    post.isPublished = !!published;
     if (post.isPublished && !post.publishedAt) post.publishedAt = new Date();
+
     await this.repo.save(post);
-    if (translations) await this.saveTranslations(post, translations);
+    await this.saveTranslations(post, translations);
     return this.repo.findOne({ where: { id: post.id }, relations: ['translations'] });
   }
 
@@ -96,14 +208,14 @@ export class BlogService {
   private format(p: BlogPost, lang: string) {
     const t = p.translations?.find((tr) => tr.lang === lang);
     return {
-      id:          p.id,
-      slug:        p.slug,
-      coverImage:  p.coverImage,
+      id: p.id,
+      slug: p.slug,
+      coverImage: p.coverImage,
       isPublished: p.isPublished,
       publishedAt: p.publishedAt,
-      title:       t?.title   ?? '',
-      excerpt:     t?.excerpt ?? '',
-      content:     t?.content ?? '',
+      title: t?.title ?? '',
+      excerpt: t?.excerpt ?? '',
+      content: t?.content ?? '',
     };
   }
 }

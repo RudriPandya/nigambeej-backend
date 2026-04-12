@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HeroSlide } from '../entities/hero-slide.entity';
 import { HeroSlideTranslation } from '../entities/hero-slide-translation.entity';
 
 const LANGS = ['en', 'hi', 'gu'] as const;
+
+const EN_REQUIRED_FIELDS = ['title', 'subtitle', 'ctaLabel', 'ctaUrl'] as const;
 
 @Injectable()
 export class HeroService {
@@ -27,13 +29,22 @@ export class HeroService {
   }
 
   async create(data: any) {
+    const sortOrder =
+      data.sortOrder !== undefined && data.sortOrder !== '' ? +data.sortOrder : 0;
+    await this.assertUniqueSortOrder(sortOrder);
+
+    const translations = this.parseTranslations(data.translations);
+    if (!translations) {
+      throw new BadRequestException('Translations JSON is required');
+    }
+    this.validateEnglishTranslations(translations);
+
     const slide = this.repo.create({
       imagePath: data.imagePath ?? null,
-      sortOrder: data.sortOrder ? +data.sortOrder : 0,
+      sortOrder,
     });
     const saved = await this.repo.save(slide);
-    const translations = this.parseTranslations(data.translations);
-    if (translations) await this.saveTranslations(saved, translations);
+    await this.saveTranslations(saved, translations);
     return this.repo.findOne({ where: { id: saved.id }, relations: ['translations'] });
   }
 
@@ -41,13 +52,50 @@ export class HeroService {
     const slide = await this.repo.findOne({ where: { id }, relations: ['translations'] });
     if (!slide) throw new NotFoundException();
 
+    if (data.sortOrder !== undefined && data.sortOrder !== '') {
+      const nextOrder = +data.sortOrder;
+      await this.assertUniqueSortOrder(nextOrder, id);
+      slide.sortOrder = nextOrder;
+    }
     if (data.imagePath) slide.imagePath = data.imagePath;
-    if (data.sortOrder !== undefined) slide.sortOrder = +data.sortOrder;
     await this.repo.save(slide);
 
-    const translations = this.parseTranslations(data.translations);
-    if (translations) await this.saveTranslations(slide, translations);
+    const rawTrans = data.translations;
+    if (rawTrans !== undefined && rawTrans !== null && String(rawTrans).trim() !== '') {
+      const translations = this.parseTranslations(rawTrans);
+      if (!translations) {
+        throw new BadRequestException('Invalid translations JSON');
+      }
+      this.validateEnglishTranslations(translations);
+      await this.saveTranslations(slide, translations);
+    }
     return this.repo.findOne({ where: { id }, relations: ['translations'] });
+  }
+
+  private async assertUniqueSortOrder(sortOrder: number, excludeId?: number): Promise<void> {
+    const existing = await this.repo.findOne({ where: { sortOrder } });
+    if (existing && (excludeId === undefined || existing.id !== excludeId)) {
+      throw new BadRequestException('Sort order is already used by another slide');
+    }
+  }
+
+  private validateEnglishTranslations(translations: Record<string, any>): void {
+    const en = translations?.en;
+    if (!en || typeof en !== 'object') {
+      throw new BadRequestException('English (en) translations are required');
+    }
+    const labels: Record<(typeof EN_REQUIRED_FIELDS)[number], string> = {
+      title: 'title',
+      subtitle: 'subtitle',
+      ctaLabel: 'button label',
+      ctaUrl: 'button URL',
+    };
+    for (const field of EN_REQUIRED_FIELDS) {
+      const v = en[field];
+      if (typeof v !== 'string' || !v.trim()) {
+        throw new BadRequestException(`English ${labels[field]} is required`);
+      }
+    }
   }
 
   private parseTranslations(raw: any): Record<string, any> | null {

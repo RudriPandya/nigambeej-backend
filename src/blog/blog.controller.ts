@@ -21,8 +21,10 @@ export class BlogController {
 
   @Get('admin/blog')
   @UseGuards(JwtAuthGuard)
-  adminList() {
-    return this.service.findAllAdmin();
+  adminList(@Query('page') pageRaw?: string, @Query('limit') limitRaw?: string) {
+    const page = Math.max(1, parseInt(String(pageRaw ?? '1'), 10) || 1);
+    const limit = Math.min(1000, Math.max(1, parseInt(String(limitRaw ?? '10'), 10) || 10));
+    return this.service.findAllAdmin(page, limit);
   }
 
   @Get('admin/blog/:id')

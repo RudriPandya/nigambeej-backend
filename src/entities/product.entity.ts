@@ -13,11 +13,11 @@ export class Product {
 
   @ManyToOne(() => Category, (c) => c.products, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'category_id' })
-  category: Category;
+  category: Category | null;
 
   @ManyToOne(() => Subcategory, (s) => s.products, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'subcategory_id' })
-  subcategory: Subcategory;
+  subcategory: Subcategory | null;
 
   @Column({ name: 'image_path', nullable: true })
   imagePath: string;

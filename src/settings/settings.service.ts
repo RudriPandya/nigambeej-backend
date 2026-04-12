@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SiteSetting } from '../entities/site-setting.entity';
+import { validateAndSanitizeAboutPayload } from './about-settings.validation';
+import { validateAndSanitizeInfoPayload } from './info-settings.validation';
 
 @Injectable()
 export class SettingsService {
@@ -21,9 +23,11 @@ export class SettingsService {
     return this.repo.save(this.repo.create({ settingKey: key, settingValue: value }));
   }
 
-  async batchUpsert(data: Record<string, string>) {
+  async batchUpsert(data: Record<string, unknown>) {
+    const afterAbout = validateAndSanitizeAboutPayload(data);
+    const sanitized = validateAndSanitizeInfoPayload(afterAbout);
     const results = await Promise.all(
-      Object.entries(data).map(([key, value]) => this.upsert(key, value)),
+      Object.entries(sanitized).map(([key, value]) => this.upsert(key, value)),
     );
     return results;
   }

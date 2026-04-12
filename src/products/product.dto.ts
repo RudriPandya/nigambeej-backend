@@ -1,8 +1,8 @@
 import {
   IsString, IsNotEmpty, IsOptional, IsBoolean, IsNumber,
-  MaxLength, MinLength, Matches, IsArray, ValidateNested, Min,
+  MaxLength, Matches, Min, Allow,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Transform } from 'class-transformer';
 
 export class ProductTranslationDto {
   @IsString()
@@ -47,6 +47,16 @@ export class CreateProductDto {
   sortOrder?: number;
 
   @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  categoryId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  subcategoryId?: number;
+
+  @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isFeatured?: boolean;
@@ -55,9 +65,10 @@ export class CreateProductDto {
   @IsString()
   imagePath?: string;
 
-  // translations come as JSON string in multipart form
+  /** Multipart nested fields or JSON string — must pass ValidationPipe whitelist */
   @IsOptional()
-  translations?: string;
+  @Allow()
+  translations?: Record<string, { name?: string; description?: string }> | string;
 }
 
 export class UpdateProductDto {
@@ -82,6 +93,16 @@ export class UpdateProductDto {
   sortOrder?: number;
 
   @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  categoryId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== '' ? Number(value) : undefined))
+  @IsNumber()
+  subcategoryId?: number;
+
+  @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isFeatured?: boolean;
@@ -91,5 +112,6 @@ export class UpdateProductDto {
   imagePath?: string;
 
   @IsOptional()
-  translations?: string;
+  @Allow()
+  translations?: Record<string, { name?: string; description?: string }> | string;
 }

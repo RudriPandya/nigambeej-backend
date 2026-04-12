@@ -22,7 +22,7 @@ export class SettingsController {
 
   @Put('admin/settings')
   @UseGuards(JwtAuthGuard)
-  batchUpdate(@Body() body: Record<string, string>) {
+  batchUpdate(@Body() body: Record<string, unknown>) {
     if (!body || typeof body !== 'object') {
       throw new BadRequestException('Settings must be a key-value object');
     }

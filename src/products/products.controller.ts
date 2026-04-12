@@ -14,8 +14,22 @@ export class ProductsController {
 
   // Public
   @Get('products')
-  getAll(@Query('lang') lang: string, @Query('category') cat: string, @Query('subcategory') sub: string) {
-    return this.service.findAll(lang, cat, sub);
+  getAll(
+    @Query('lang') lang: string,
+    @Query('category') cat: string,
+    @Query('subcategory') sub: string,
+    @Query('page') pageRaw?: string,
+    @Query('limit') limitRaw?: string,
+  ) {
+    const usePagination = pageRaw !== undefined && pageRaw !== '';
+    const page = usePagination ? Math.max(1, parseInt(String(pageRaw), 10) || 1) : undefined;
+    const limit =
+      usePagination && limitRaw !== undefined && limitRaw !== ''
+        ? Math.min(100, Math.max(1, parseInt(String(limitRaw), 10) || 24))
+        : usePagination
+          ? 24
+          : undefined;
+    return this.service.findAll(lang, cat, sub, page, limit);
   }
 
   @Get('products/featured')
@@ -36,8 +50,10 @@ export class ProductsController {
   // Admin
   @Get('admin/products')
   @UseGuards(JwtAuthGuard)
-  adminList() {
-    return this.service.findAllAdmin();
+  adminList(@Query('page') pageRaw?: string, @Query('limit') limitRaw?: string) {
+    const page = Math.max(1, parseInt(String(pageRaw ?? '1'), 10) || 1);
+    const limit = Math.min(1000, Math.max(1, parseInt(String(limitRaw ?? '10'), 10) || 10));
+    return this.service.findAllAdmin(page, limit);
   }
 
   @Post('admin/products')

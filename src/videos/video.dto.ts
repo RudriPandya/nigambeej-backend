@@ -1,5 +1,5 @@
 import {
-  IsString, IsNotEmpty, IsOptional, IsNumber, MaxLength, MinLength, Matches, Min,
+  IsString, IsNotEmpty, IsOptional, IsNumber, MaxLength, MinLength, Matches, Min, IsObject,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -17,9 +17,9 @@ export class CreateVideoDto {
   @Min(0)
   sortOrder?: number;
 
-  // translations JSON string: [{lang, title}]
   @IsOptional()
-  translations?: string;
+  @IsObject()
+  translations?: Record<string, { title?: string }>;
 }
 
 export class UpdateVideoDto {
@@ -37,5 +37,6 @@ export class UpdateVideoDto {
   sortOrder?: number;
 
   @IsOptional()
-  translations?: string;
+  @IsObject()
+  translations?: Record<string, { title?: string }>;
 }

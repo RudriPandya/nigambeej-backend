@@ -17,8 +17,8 @@ export class ProductTranslation {
   name: string;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description: string | null;
 
   @Column({ name: 'detail_intro', type: 'text', nullable: true })
-  detailIntro: string;
+  detailIntro: string | null;
 }

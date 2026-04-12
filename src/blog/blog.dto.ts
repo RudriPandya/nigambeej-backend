@@ -1,5 +1,5 @@
 import {
-  IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength, Matches,
+  IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength, Matches, Allow,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -13,14 +13,20 @@ export class CreateBlogDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
+  isPublished?: boolean;
+
+  /** Legacy alias — prefer `isPublished` */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
   published?: boolean;
 
   @IsOptional()
   @IsString()
   coverImage?: string;
 
-  // translations (JSON string) for title, excerpt, content per lang
-  @IsOptional()
+  /** JSON string: { en: { title, excerpt, content }, ... } */
+  @Allow()
   translations?: string;
 }
 
@@ -34,12 +40,17 @@ export class UpdateBlogDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
+  isPublished?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
   published?: boolean;
 
   @IsOptional()
   @IsString()
   coverImage?: string;
 
-  @IsOptional()
+  @Allow()
   translations?: string;
 }

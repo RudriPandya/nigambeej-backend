@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductVideo } from '../entities/product-video.entity';
@@ -10,6 +10,32 @@ export class VideosService {
     @InjectRepository(ProductVideo) private readonly repo: Repository<ProductVideo>,
     @InjectRepository(ProductVideoTranslation) private readonly translationRepo: Repository<ProductVideoTranslation>,
   ) {}
+
+  private validateVideoTranslations(translations: Record<string, any> | null): void {
+    if (!translations || typeof translations !== 'object') {
+      throw new BadRequestException('Video translations are required');
+    }
+    const en = translations.en?.title;
+    if (typeof en !== 'string' || !en.trim()) {
+      throw new BadRequestException('English video title is required');
+    }
+    if (en.trim().length > 200) {
+      throw new BadRequestException('English video title must not exceed 200 characters');
+    }
+    for (const lang of ['hi', 'gu'] as const) {
+      const t = translations[lang]?.title;
+      if (typeof t === 'string' && t.length > 200) {
+        throw new BadRequestException(`${lang.toUpperCase()} video title must not exceed 200 characters`);
+      }
+    }
+  }
+
+  private async assertUniqueSortOrder(sortOrder: number, excludeId?: number): Promise<void> {
+    const existing = await this.repo.findOne({ where: { sortOrder } });
+    if (existing && (excludeId === undefined || existing.id !== excludeId)) {
+      throw new BadRequestException('Sort order is already used by another video');
+    }
+  }
 
   private parseTranslations(raw: any): Record<string, any> | null {
     if (!raw) return null;
@@ -58,9 +84,12 @@ export class VideosService {
 
   async create(data: any) {
     const translations = this.parseTranslations(data.translations);
+    this.validateVideoTranslations(translations);
+    const sortOrder = +data.sortOrder || 0;
+    await this.assertUniqueSortOrder(sortOrder);
     const video = this.repo.create({
       videoId: data.videoId,
-      sortOrder: +data.sortOrder || 0,
+      sortOrder,
       isActive: true,
     });
     await this.repo.save(video);
@@ -72,8 +101,13 @@ export class VideosService {
     const video = await this.repo.findOne({ where: { id } });
     if (!video) throw new NotFoundException();
     const translations = this.parseTranslations(data.translations);
+    if (translations) this.validateVideoTranslations(translations);
     if (data.videoId !== undefined) video.videoId = data.videoId;
-    if (data.sortOrder !== undefined) video.sortOrder = +data.sortOrder || 0;
+    if (data.sortOrder !== undefined) {
+      const nextOrder = +data.sortOrder || 0;
+      await this.assertUniqueSortOrder(nextOrder, id);
+      video.sortOrder = nextOrder;
+    }
     await this.repo.save(video);
     if (translations) await this.saveTranslations(video, translations);
     return this.repo.findOne({ where: { id: video.id }, relations: ['translations'] });
