@@ -16,8 +16,12 @@ const REQUIRED_INFO_KEYS = [
 
 export function payloadTouchesInformationSection(body: object): boolean {
   if (!body || typeof body !== 'object') return false;
+  // info_cards  — new multi-card JSON blob, saved independently
+  // info_practices_slugs — saved independently via its own save button
+  // info_card_image — image upload, saved independently
+  const INDEPENDENT_KEYS = new Set(['info_card_image', 'info_cards', 'info_practices_slugs', 'info_home_card_index']);
   return Object.keys(body).some(
-    (k) => k.startsWith('info_') && k !== 'info_card_image',
+    (k) => k.startsWith('info_') && !INDEPENDENT_KEYS.has(k),
   );
 }
 
