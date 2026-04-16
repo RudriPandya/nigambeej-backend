@@ -25,6 +25,7 @@ import { ContactInquiry } from './entities/contact-inquiry.entity';
 import { CareerApplication } from './entities/career-application.entity';
 import { SiteSetting } from './entities/site-setting.entity';
 import { TranslationOverride } from './entities/translation-override.entity';
+import { InformationCard } from './entities/information-card.entity';
 
 // Modules
 import { AuthModule } from './auth/auth.module';
@@ -39,6 +40,7 @@ import { ContactModule } from './contact/contact.module';
 import { CareersModule } from './careers/careers.module';
 import { SettingsModule } from './settings/settings.module';
 import { TranslationsModule } from './translations/translations.module';
+import { InformationModule } from './information/information.module';
 
 const ALL_ENTITIES = [
   AdminUser, Category, CategoryTranslation, Subcategory, SubcategoryTranslation,
@@ -46,6 +48,7 @@ const ALL_ENTITIES = [
   BlogPost, BlogPostTranslation, GalleryImage, MediaImage,
   HeroSlide, HeroSlideTranslation, HomepageStat,
   ContactInquiry, CareerApplication, SiteSetting, TranslationOverride,
+  InformationCard,
 ];
 
 @Module({
@@ -78,6 +81,7 @@ const ALL_ENTITIES = [
     CareersModule,
     SettingsModule,
     TranslationsModule,
+    InformationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
