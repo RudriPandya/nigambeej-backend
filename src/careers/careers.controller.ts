@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { join } from 'path';
 import { CareersService } from './careers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { createMulterStorage } from '../common/multer.config';
+import { createMulterStorage, getUploadsRoot } from '../common/multer.config';
 import { CreateCareerDto } from './create-career.dto';
 
 const ALLOWED_CV_MIMETYPES = [
@@ -51,6 +51,6 @@ export class CareersController {
   async downloadCv(@Param('id') id: string, @Res() res: Response) {
     const app = await this.service.findOne(+id);
     if (!app?.cvFilePath) return res.status(404).json({ error: 'CV not found' });
-    return res.download(join(process.cwd(), 'uploads', app.cvFilePath));
+    return res.download(join(getUploadsRoot(), app.cvFilePath));
   }
 }
