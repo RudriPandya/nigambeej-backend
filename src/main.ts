@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import * as express from 'express';
-import { join } from 'path';
+import { getUploadsRoot } from './common/multer.config';
 
 async function bootstrap() {
   const isDev = process.env.NODE_ENV !== 'production';
@@ -28,8 +28,8 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  // Serve uploaded files statically
-  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  // Serve uploaded files from the persistent uploads directory
+  app.use('/uploads', express.static(getUploadsRoot()));
 
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
