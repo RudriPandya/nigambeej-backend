@@ -19,8 +19,14 @@ export class Product {
   @JoinColumn({ name: 'subcategory_id' })
   subcategory: Subcategory | null;
 
-  @Column({ name: 'image_path', nullable: true })
-  imagePath: string;
+  @Column({ name: 'image_data', type: 'longblob', nullable: true, select: false })
+  imageData: Buffer;
+
+  @Column({ name: 'image_mimetype', nullable: true })
+  imageMimetype: string;
+
+  @Column({ name: 'image_original_name', nullable: true })
+  imageOriginalName: string;
 
   @Column({ name: 'sort_order', default: 0 })
   sortOrder: number;

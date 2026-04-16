@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, UseInterceptors, UploadedFile, Res } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { BlogService } from './blog.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { createMulterStorage, imageFileFilter, MAX_IMAGE_SIZE } from '../common/multer.config';
@@ -14,9 +15,17 @@ export class BlogController {
     return this.service.findAll(lang, +page || 1, +limit || 9);
   }
 
-  @Get('blog/:slug')
-  getOne(@Param('slug') slug: string, @Query('lang') lang: string) {
-    return this.service.findBySlug(slug, lang);
+  @Get('blog/:id/image')
+  async getImage(@Param('id') id: string, @Res() res: Response) {
+    const post = await this.service.findOneAdminWithImage(+id);
+    if (!post || !post.coverImageData) {
+      return res.status(404).send('Image not found');
+    }
+    res.set({
+      'Content-Type': post.coverImageMimetype,
+      'Content-Disposition': `inline; filename="${post.coverImageOriginalName}"`,
+    });
+    res.send(post.coverImageData);
   }
 
   @Get('admin/blog')
@@ -35,19 +44,27 @@ export class BlogController {
 
   @Post('admin/blog')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('cover', { storage: createMulterStorage('blog'), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
+  @UseInterceptors(FileInterceptor('cover', { storage: createMulterStorage(), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
   create(@Body() body: CreateBlogDto, @UploadedFile() file?: Express.Multer.File) {
     const data = { ...body };
-    if (file) data.coverImage = `blog/${file.filename}`;
+    if (file) {
+      data.coverImageData = file.buffer;
+      data.coverImageMimetype = file.mimetype;
+      data.coverImageOriginalName = file.originalname;
+    }
     return this.service.create(data);
   }
 
   @Put('admin/blog/:id')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('cover', { storage: createMulterStorage('blog'), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
+  @UseInterceptors(FileInterceptor('cover', { storage: createMulterStorage(), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
   update(@Param('id') id: string, @Body() body: UpdateBlogDto, @UploadedFile() file?: Express.Multer.File) {
     const data = { ...body };
-    if (file) data.coverImage = `blog/${file.filename}`;
+    if (file) {
+      data.coverImageData = file.buffer;
+      data.coverImageMimetype = file.mimetype;
+      data.coverImageOriginalName = file.originalname;
+    }
     return this.service.update(+id, data);
   }
 

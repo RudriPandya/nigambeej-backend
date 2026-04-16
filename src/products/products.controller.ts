@@ -1,8 +1,9 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query,
-  UseGuards, UseInterceptors, UploadedFile, Patch,
+  UseGuards, UseInterceptors, UploadedFile, Patch, Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { createMulterStorage, imageFileFilter, MAX_IMAGE_SIZE } from '../common/multer.config';
@@ -42,6 +43,19 @@ export class ProductsController {
     return this.service.findBySlug(slug, lang);
   }
 
+  @Get('products/:id/image')
+  async getImage(@Param('id') id: string, @Res() res: Response) {
+    const product = await this.service.findOneWithImage(+id);
+    if (!product || !product.imageData) {
+      return res.status(404).send('Image not found');
+    }
+    res.set({
+      'Content-Type': product.imageMimetype,
+      'Content-Disposition': `inline; filename="${product.imageOriginalName}"`,
+    });
+    res.send(product.imageData);
+  }
+
   @Get('categories')
   getCategories(@Query('lang') lang: string) {
     return this.service.getCategories(lang);
@@ -58,19 +72,27 @@ export class ProductsController {
 
   @Post('admin/products')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('image', { storage: createMulterStorage('products'), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
+  @UseInterceptors(FileInterceptor('image', { storage: createMulterStorage(), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
   create(@Body() body: CreateProductDto, @UploadedFile() file?: Express.Multer.File) {
     const data: Record<string, unknown> = { ...body };
-    if (file) data.imagePath = `products/${file.filename}`;
+    if (file) {
+      data.imageData = file.buffer;
+      data.imageMimetype = file.mimetype;
+      data.imageOriginalName = file.originalname;
+    }
     return this.service.create(data as any);
   }
 
   @Put('admin/products/:id')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('image', { storage: createMulterStorage('products'), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
+  @UseInterceptors(FileInterceptor('image', { storage: createMulterStorage(), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
   update(@Param('id') id: string, @Body() body: UpdateProductDto, @UploadedFile() file?: Express.Multer.File) {
     const data: Record<string, unknown> = { ...body };
-    if (file) data.imagePath = `products/${file.filename}`;
+    if (file) {
+      data.imageData = file.buffer;
+      data.imageMimetype = file.mimetype;
+      data.imageOriginalName = file.originalname;
+    }
     return this.service.update(+id, data as any);
   }
 

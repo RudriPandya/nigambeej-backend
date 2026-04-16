@@ -8,8 +8,14 @@ export class GalleryImage {
   @Column({ name: 'tab_key', default: 'all' })
   tabKey: string;
 
-  @Column({ name: 'image_path' })
-  imagePath: string;
+  @Column({ name: 'image_data', type: 'longblob', select: false })
+  imageData: Buffer;
+
+  @Column({ name: 'mimetype' })
+  mimetype: string;
+
+  @Column({ name: 'original_name' })
+  originalName: string;
 
   @Column({ name: 'alt_text', nullable: true })
   altText: string;

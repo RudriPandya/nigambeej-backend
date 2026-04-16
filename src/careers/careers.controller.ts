@@ -26,7 +26,7 @@ export class CareersController {
   constructor(private readonly service: CareersService) {}
 
   @Post('careers')
-  @UseInterceptors(FileInterceptor('cv', { storage: createMulterStorage('cvs'), fileFilter: cvFileFilter, limits: { fileSize: MAX_CV_SIZE } }))
+  @UseInterceptors(FileInterceptor('cv', { storage: createMulterStorage(), fileFilter: cvFileFilter, limits: { fileSize: MAX_CV_SIZE } }))
   submit(@Body() body: CreateCareerDto, @UploadedFile() file?: Express.Multer.File) {
     const data: Record<string, unknown> = { ...body };
     if (file) data.cvFilePath = `cvs/${file.filename}`;

@@ -1,4 +1,4 @@
-import { diskStorage } from 'multer';
+import { memoryStorage, diskStorage } from 'multer';
 import { extname, resolve } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { BadRequestException } from '@nestjs/common';
@@ -20,18 +20,23 @@ export function getUploadsRoot(): string {
   return dir;
 }
 
-export function createMulterStorage(subfolder: string) {
-  return diskStorage({
-    destination: (req, file, cb) => {
-      const dest = `${getUploadsRoot()}/${subfolder}`;
-      if (!existsSync(dest)) mkdirSync(dest, { recursive: true });
-      cb(null, dest);
-    },
-    filename: (req, file, cb) => {
-      const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      cb(null, `${unique}${extname(file.originalname)}`);
-    },
-  });
+export function createMulterStorage(subfolder?: string) {
+  if (subfolder) {
+    // For non-images like CVs
+    return diskStorage({
+      destination: (req, file, cb) => {
+        const dest = `${getUploadsRoot()}/${subfolder}`;
+        if (!existsSync(dest)) mkdirSync(dest, { recursive: true });
+        cb(null, dest);
+      },
+      filename: (req, file, cb) => {
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, `${unique}${extname(file.originalname)}`);
+      },
+    });
+  }
+  // For images, use memory storage
+  return memoryStorage();
 }
 
 export function imageFileFilter(

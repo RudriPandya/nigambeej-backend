@@ -10,11 +10,23 @@ export class GalleryService {
   findAll(tab?: string) {
     const where: any = { isActive: true };
     if (tab && tab !== 'all') where.tabKey = tab;
-    return this.repo.find({ where, order: { sortOrder: 'ASC' } });
+    return this.repo.find({ where, order: { sortOrder: 'ASC' } }).then(items =>
+      items.map(item => ({ ...item, imageUrl: `/api/gallery/${item.id}/image` }))
+    );
   }
 
   findAllAdmin() {
-    return this.repo.find({ order: { tabKey: 'ASC', sortOrder: 'ASC' } });
+    return this.repo.find({ order: { tabKey: 'ASC', sortOrder: 'ASC' } }).then(items =>
+      items.map(item => ({ ...item, imageUrl: `/api/gallery/${item.id}/image` }))
+    );
+  }
+
+  findOne(id: number) {
+    return this.repo.findOne({ where: { id, isActive: true } });
+  }
+
+  findOneWithImage(id: number) {
+    return this.repo.findOne({ where: { id, isActive: true }, select: ['id', 'imageData', 'mimetype', 'originalName', 'tabKey', 'altText', 'sortOrder', 'isActive'] });
   }
 
   create(data: Partial<GalleryImage>) {

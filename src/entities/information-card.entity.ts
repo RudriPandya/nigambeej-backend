@@ -5,8 +5,14 @@ export class InformationCard {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', nullable: true })
-  image: string | null;
+  @Column({ name: 'image_data', type: 'longblob', nullable: true, select: false })
+  imageData: Buffer;
+
+  @Column({ name: 'image_mimetype', nullable: true })
+  imageMimetype: string;
+
+  @Column({ name: 'image_original_name', nullable: true })
+  imageOriginalName: string;
 
   @Column({ name: 'btn_url', default: '/information' })
   btnUrl: string;

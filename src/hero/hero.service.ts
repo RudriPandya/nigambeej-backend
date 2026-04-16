@@ -20,14 +20,23 @@ export class HeroService {
       where: { isActive: true },
       relations: ['translations'],
       order: { sortOrder: 'ASC' },
+      select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'sortOrder', 'isActive'],
     });
     return slides.map((s) => this.format(s, lang));
   }
 
   findAllAdmin() {
-    return this.repo.find({ relations: ['translations'], order: { sortOrder: 'ASC' } });
+    return this.repo.find({ relations: ['translations'], order: { sortOrder: 'ASC' }, select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'sortOrder', 'isActive'] }).then(slides =>
+      slides.map(s => this.formatAdmin(s))
+    );
+  }
+  findOne(id: number) {
+    return this.repo.findOne({ where: { id, isActive: true } });
   }
 
+  findOneWithImage(id: number) {
+    return this.repo.findOne({ where: { id, isActive: true }, select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'sortOrder', 'isActive'] });
+  }
   async create(data: any) {
     const sortOrder =
       data.sortOrder !== undefined && data.sortOrder !== '' ? +data.sortOrder : 0;
@@ -40,12 +49,14 @@ export class HeroService {
     this.validateEnglishTranslations(translations);
 
     const slide = this.repo.create({
-      imagePath: data.imagePath ?? null,
+      imageData: data.imageData ?? null,
+      imageMimetype: data.imageMimetype ?? null,
+      imageOriginalName: data.imageOriginalName ?? null,
       sortOrder,
     });
     const saved = await this.repo.save(slide);
     await this.saveTranslations(saved, translations);
-    return this.repo.findOne({ where: { id: saved.id }, relations: ['translations'] });
+    return this.repo.findOne({ where: { id: saved.id }, relations: ['translations'], select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'sortOrder', 'isActive'] });
   }
 
   async update(id: number, data: any) {
@@ -57,7 +68,9 @@ export class HeroService {
       await this.assertUniqueSortOrder(nextOrder, id);
       slide.sortOrder = nextOrder;
     }
-    if (data.imagePath) slide.imagePath = data.imagePath;
+    if (data.imageData !== undefined) slide.imageData = data.imageData;
+    if (data.imageMimetype !== undefined) slide.imageMimetype = data.imageMimetype;
+    if (data.imageOriginalName !== undefined) slide.imageOriginalName = data.imageOriginalName;
     await this.repo.save(slide);
 
     const rawTrans = data.translations;
@@ -69,7 +82,7 @@ export class HeroService {
       this.validateEnglishTranslations(translations);
       await this.saveTranslations(slide, translations);
     }
-    return this.repo.findOne({ where: { id }, relations: ['translations'] });
+    return this.repo.findOne({ where: { id }, relations: ['translations'], select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'sortOrder', 'isActive'] });
   }
 
   private async assertUniqueSortOrder(sortOrder: number, excludeId?: number): Promise<void> {
@@ -133,8 +146,23 @@ export class HeroService {
     const t = s.translations?.find((tr) => tr.lang === lang);
     return {
       id: s.id,
-      imagePath: s.imagePath,
+      imageUrl: s.imageData ? `/api/hero/${s.id}/image` : null,
       sortOrder: s.sortOrder,
+      title: t?.title ?? '',
+      subtitle: t?.subtitle ?? '',
+      ctaLabel: t?.ctaLabel ?? '',
+      ctaUrl: t?.ctaUrl ?? '',
+    };
+  }
+
+  private formatAdmin(s: HeroSlide) {
+    const t = s.translations?.find((tr) => tr.lang === 'en');
+    return {
+      id: s.id,
+      imageUrl: s.imageData ? `/api/hero/${s.id}/image` : null,
+      sortOrder: s.sortOrder,
+      isActive: s.isActive,
+      translations: s.translations,
       title: t?.title ?? '',
       subtitle: t?.subtitle ?? '',
       ctaLabel: t?.ctaLabel ?? '',

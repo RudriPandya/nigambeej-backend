@@ -117,7 +117,7 @@ export class BlogService {
     }
 
     return {
-      data,
+      data: data.map((p) => ({ ...p, coverImageUrl: `/api/blog/${p.id}/image` })),
       total,
       page: safePage,
       limit: take,
@@ -128,6 +128,10 @@ export class BlogService {
     return this.repo.findOne({ where: { id }, relations: ['translations'] });
   }
 
+  async findOneAdminWithImage(id: number) {
+    return this.repo.findOne({ where: { id }, select: ['id', 'slug', 'coverImageData', 'coverImageMimetype', 'coverImageOriginalName', 'isPublished', 'publishedAt', 'createdAt', 'updatedAt'] });
+  }
+
   async create(data: Record<string, unknown>) {
     const slug = String(data.slug ?? '').trim();
     if (!slug) throw new BadRequestException('Slug is required');
@@ -136,8 +140,10 @@ export class BlogService {
     if (!translations) throw new BadRequestException('Translations are required');
     this.validateEnglishBlock(translations);
 
-    const coverImage = (data.coverImage as string) ?? '';
-    if (!coverImage.trim()) {
+    const coverImageData = data.coverImageData as Buffer | undefined;
+    const coverImageMimetype = data.coverImageMimetype as string | undefined;
+    const coverImageOriginalName = data.coverImageOriginalName as string | undefined;
+    if (!coverImageData || !coverImageMimetype || !coverImageOriginalName) {
       throw new BadRequestException('Cover image is required');
     }
 
@@ -151,7 +157,9 @@ export class BlogService {
 
     const post = this.repo.create({
       slug,
-      coverImage,
+      coverImageData,
+      coverImageMimetype,
+      coverImageOriginalName,
       isPublished: !!published,
     }) as BlogPost;
     if (post.isPublished) post.publishedAt = new Date();
@@ -178,11 +186,15 @@ export class BlogService {
       post.slug = slug;
     }
 
-    const incomingCover = data.coverImage as string | undefined;
-    if (incomingCover !== undefined && incomingCover !== '') {
-      post.coverImage = incomingCover;
+    const incomingCoverData = data.coverImageData as Buffer | undefined;
+    const incomingCoverMimetype = data.coverImageMimetype as string | undefined;
+    const incomingCoverOriginalName = data.coverImageOriginalName as string | undefined;
+    if (incomingCoverData !== undefined && incomingCoverMimetype !== undefined && incomingCoverOriginalName !== undefined) {
+      post.coverImageData = incomingCoverData;
+      post.coverImageMimetype = incomingCoverMimetype;
+      post.coverImageOriginalName = incomingCoverOriginalName;
     }
-    if (!post.coverImage || !String(post.coverImage).trim()) {
+    if (!post.coverImageData || !post.coverImageMimetype || !post.coverImageOriginalName) {
       throw new BadRequestException('Cover image is required');
     }
 
@@ -210,7 +222,7 @@ export class BlogService {
     return {
       id: p.id,
       slug: p.slug,
-      coverImage: p.coverImage,
+      coverImageUrl: p.coverImageMimetype ? `/api/blog/${p.id}/image` : null,
       isPublished: p.isPublished,
       publishedAt: p.publishedAt,
       title: t?.title ?? '',

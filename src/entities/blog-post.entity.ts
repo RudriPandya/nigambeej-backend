@@ -10,8 +10,14 @@ export class BlogPost {
   @Column({ unique: true })
   slug: string;
 
-  @Column({ name: 'cover_image', nullable: true })
-  coverImage: string;
+  @Column({ name: 'cover_image_data', type: 'longblob', nullable: true, select: false })
+  coverImageData: Buffer;
+
+  @Column({ name: 'cover_image_mimetype', nullable: true })
+  coverImageMimetype: string;
+
+  @Column({ name: 'cover_image_original_name', nullable: true })
+  coverImageOriginalName: string;
 
   @Column({ name: 'is_published', default: false })
   isPublished: boolean;

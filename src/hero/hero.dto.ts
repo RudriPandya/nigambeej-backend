@@ -14,6 +14,11 @@ export class CreateHeroDto {
   @IsString()
   imagePath?: string;
 
+  // Added for file upload
+  imageData?: Buffer;
+  imageMimetype?: string;
+  imageOriginalName?: string;
+
   // translations JSON string: [{lang, title, subtitle, ctaLabel, ctaUrl}]
   @IsOptional()
   translations?: string;
@@ -29,6 +34,11 @@ export class UpdateHeroDto {
   @IsOptional()
   @IsString()
   imagePath?: string;
+
+  // Added for file upload
+  imageData?: Buffer;
+  imageMimetype?: string;
+  imageOriginalName?: string;
 
   @IsOptional()
   translations?: string;

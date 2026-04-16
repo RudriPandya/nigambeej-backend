@@ -8,7 +8,17 @@ export class MediaService {
   constructor(@InjectRepository(MediaImage) private readonly repo: Repository<MediaImage>) {}
 
   findAll() {
-    return this.repo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } });
+    return this.repo.find({ where: { isActive: true }, order: { sortOrder: 'ASC' } }).then(items =>
+      items.map(item => ({ ...item, imageUrl: `/api/media/${item.id}/image` }))
+    );
+  }
+
+  findOne(id: number) {
+    return this.repo.findOne({ where: { id, isActive: true } });
+  }
+
+  findOneWithImage(id: number) {
+    return this.repo.findOne({ where: { id, isActive: true }, select: ['id', 'imageData', 'mimetype', 'originalName', 'altText', 'sortOrder', 'isActive'] });
   }
 
   create(data: Partial<MediaImage>) {

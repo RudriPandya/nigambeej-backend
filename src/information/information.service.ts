@@ -1,11 +1,16 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InformationCard } from '../entities/information-card.entity';
 
+const ALL_FIELDS: (keyof InformationCard)[] = [
+  'id', 'imageData', 'imageMimetype', 'imageOriginalName',
+  'btnUrl', 'sortOrder', 'isHomeCard',
+  'enTitle', 'enDesc', 'hiTitle', 'hiDesc', 'guTitle', 'guDesc',
+];
+
 export interface CardSaveItem {
   id?: number;
-  image?: string | null;
   btnUrl: string;
   sortOrder: number;
   isHomeCard: boolean;
@@ -25,12 +30,32 @@ export class InformationService {
   ) {}
 
   async findAll(lang = 'en') {
-    const cards = await this.repo.find({ order: { sortOrder: 'ASC' } });
+    const cards = await this.repo.find({
+      order: { sortOrder: 'ASC' },
+      select: ALL_FIELDS,
+    });
     return cards.map((c) => this.format(c, lang));
   }
 
-  findAllAdmin() {
-    return this.repo.find({ order: { sortOrder: 'ASC' } });
+  async findAllAdmin() {
+    const cards = await this.repo.find({
+      order: { sortOrder: 'ASC' },
+      select: ALL_FIELDS,
+    });
+    return cards.map((c) => this.formatAdmin(c));
+  }
+
+  async findOneWithImage(id: number) {
+    return this.repo.findOne({
+      where: { id },
+      select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName'],
+    });
+  }
+
+  async updateImage(id: number, imageData: Buffer, imageMimetype: string, imageOriginalName: string) {
+    const card = await this.repo.findOne({ where: { id } });
+    if (!card) throw new NotFoundException('Card not found');
+    await this.repo.update(id, { imageData, imageMimetype, imageOriginalName });
   }
 
   async batchSave(cards: CardSaveItem[]) {
@@ -51,25 +76,29 @@ export class InformationService {
       }
     }
 
-    // Upsert each card in order
-    const saved: InformationCard[] = [];
+    // Upsert each card and collect saved IDs in order
+    const savedIds: number[] = [];
     for (const card of cards) {
       if (card.id != null && existingIds.has(card.id)) {
         await this.repo.update(card.id, this.toRow(card));
-        const updated = await this.repo.findOne({ where: { id: card.id } });
-        if (updated) saved.push(updated);
+        savedIds.push(card.id);
       } else {
         const created = await this.repo.save(this.repo.create(this.toRow(card)));
-        saved.push(created);
+        savedIds.push(created.id);
       }
     }
 
-    return saved;
+    // Return formatted results in order
+    const result = [];
+    for (const id of savedIds) {
+      const c = await this.repo.findOne({ where: { id }, select: ALL_FIELDS });
+      if (c) result.push(this.formatAdmin(c));
+    }
+    return result;
   }
 
   private toRow(card: CardSaveItem) {
     return {
-      image: card.image ?? null,
       btnUrl: card.btnUrl ?? '/information',
       sortOrder: card.sortOrder ?? 0,
       isHomeCard: card.isHomeCard ?? false,
@@ -82,6 +111,22 @@ export class InformationService {
     };
   }
 
+  private formatAdmin(c: InformationCard) {
+    return {
+      id: c.id,
+      imageUrl: c.imageData ? `/api/information-cards/${c.id}/image` : null,
+      btnUrl: c.btnUrl,
+      sortOrder: c.sortOrder,
+      isHomeCard: c.isHomeCard,
+      enTitle: c.enTitle,
+      enDesc: c.enDesc,
+      hiTitle: c.hiTitle,
+      hiDesc: c.hiDesc,
+      guTitle: c.guTitle,
+      guDesc: c.guDesc,
+    };
+  }
+
   private format(c: InformationCard, lang: string) {
     const title =
       (lang === 'hi' ? c.hiTitle : lang === 'gu' ? c.guTitle : null) || c.enTitle;
@@ -89,7 +134,7 @@ export class InformationService {
       (lang === 'hi' ? c.hiDesc : lang === 'gu' ? c.guDesc : null) || c.enDesc;
     return {
       id: c.id,
-      image: c.image,
+      image: c.imageData ? `/api/information-cards/${c.id}/image` : null,
       btnUrl: c.btnUrl,
       isHomeCard: c.isHomeCard,
       sortOrder: c.sortOrder,

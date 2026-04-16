@@ -25,6 +25,11 @@ export class CreateBlogDto {
   @IsString()
   coverImage?: string;
 
+  // Added for file upload
+  coverImageData?: Buffer;
+  coverImageMimetype?: string;
+  coverImageOriginalName?: string;
+
   /** JSON string: { en: { title, excerpt, content }, ... } */
   @Allow()
   translations?: string;
@@ -50,6 +55,11 @@ export class UpdateBlogDto {
   @IsOptional()
   @IsString()
   coverImage?: string;
+
+  // Added for file upload
+  coverImageData?: Buffer;
+  coverImageMimetype?: string;
+  coverImageOriginalName?: string;
 
   @Allow()
   translations?: string;

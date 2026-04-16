@@ -5,8 +5,4 @@ export class CreateMediaDto {
   @IsString()
   @MaxLength(200, { message: 'Alt text must not exceed 200 characters' })
   altText?: string;
-
-  @IsOptional()
-  @IsString()
-  imagePath?: string;
 }

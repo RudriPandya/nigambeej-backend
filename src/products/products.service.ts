@@ -117,6 +117,14 @@ export class ProductsService {
     }
   }
 
+  async findOne(id: number) {
+    return this.productRepo.findOne({ where: { id, isActive: true } });
+  }
+
+  async findOneWithImage(id: number) {
+    return this.productRepo.findOne({ where: { id, isActive: true }, select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'slug', 'sortOrder', 'isActive'] });
+  }
+
   async findAll(lang = 'en', category?: string, subcategory?: string, page?: number, limit?: number) {
     const qb = this.productRepo
       .createQueryBuilder('p')
@@ -226,7 +234,7 @@ export class ProductsService {
     const maxSort = maxSortRaw?.m != null ? Number(maxSortRaw.m) : -1;
 
     return {
-      data,
+      data: data.map((p) => ({ ...p, imageUrl: `/api/products/${p.id}/image` })),
       total,
       page: safePage,
       limit: take,
@@ -263,15 +271,19 @@ export class ProductsService {
     }
     await this.assertSubcategoryBelongsToCategory(categoryId, subcategoryId);
 
-    const imagePath = (data.imagePath as string) ?? '';
-    if (!imagePath.trim()) {
+    const imageData = data.imageData as Buffer | undefined;
+    const imageMimetype = data.imageMimetype as string | undefined;
+    const imageOriginalName = data.imageOriginalName as string | undefined;
+    if (!imageData || !imageMimetype || !imageOriginalName) {
       throw new BadRequestException('Product image is required');
     }
 
     const product = this.productRepo.create({
       slug,
       sortOrder,
-      imagePath,
+      imageData,
+      imageMimetype,
+      imageOriginalName,
       isActive: true,
       isFeatured: data.isFeatured === true || data.isFeatured === 'true',
     });
@@ -309,11 +321,15 @@ export class ProductsService {
       product.sortOrder = nextOrder;
     }
 
-    const incomingImagePath = data.imagePath as string | undefined;
-    if (incomingImagePath !== undefined && incomingImagePath !== '') {
-      product.imagePath = incomingImagePath;
+    const incomingImageData = data.imageData as Buffer | undefined;
+    const incomingImageMimetype = data.imageMimetype as string | undefined;
+    const incomingImageOriginalName = data.imageOriginalName as string | undefined;
+    if (incomingImageData !== undefined && incomingImageMimetype !== undefined && incomingImageOriginalName !== undefined) {
+      product.imageData = incomingImageData;
+      product.imageMimetype = incomingImageMimetype;
+      product.imageOriginalName = incomingImageOriginalName;
     }
-    if (!product.imagePath || !String(product.imagePath).trim()) {
+    if (!product.imageData || !product.imageMimetype || !product.imageOriginalName) {
       throw new BadRequestException('Product image is required');
     }
 
@@ -382,7 +398,7 @@ export class ProductsService {
     return {
       id: p.id,
       slug: p.slug,
-      imagePath: p.imagePath,
+      imageUrl: `/api/products/${p.id}/image`,
       sortOrder: p.sortOrder,
       isFeatured: p.isFeatured,
       category: p.category
