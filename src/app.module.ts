@@ -56,17 +56,30 @@ const ALL_ENTITIES = [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        type: 'mysql',
-        host: config.get('DB_HOST', 'localhost'),
-        port: config.get<number>('DB_PORT', 3306),
-        username: config.get('DB_USER', 'root'),
-        password: config.get('DB_PASS', ''),
-        database: config.get('DB_NAME', 'nigam_beej_db'),
-        entities: ALL_ENTITIES,
-        synchronize: config.get('NODE_ENV') !== 'production',
-        charset: 'utf8mb4',
-      }),
+      useFactory: (config: ConfigService) => {
+        // DATABASE_SYNC explicitly controls TypeORM schema sync.
+        // Set DATABASE_SYNC=false in .env to prevent any automatic
+        // schema changes (add/alter/drop columns) while running
+        // `npm run start:dev`. If unset, defaults to true in
+        // non-production environments for backward compatibility.
+        const syncEnv = config.get<string>('DATABASE_SYNC');
+        const synchronize =
+          syncEnv !== undefined
+            ? String(syncEnv).toLowerCase() === 'true'
+            : config.get('NODE_ENV') !== 'production';
+
+        return {
+          type: 'mysql',
+          host: config.get('DB_HOST', 'localhost'),
+          port: config.get<number>('DB_PORT', 3306),
+          username: config.get('DB_USER', 'root'),
+          password: config.get('DB_PASS', ''),
+          database: config.get('DB_NAME', 'nigam_beej_db'),
+          entities: ALL_ENTITIES,
+          synchronize,
+          charset: 'utf8mb4',
+        };
+      },
       inject: [ConfigService],
     }),
     AuthModule,
