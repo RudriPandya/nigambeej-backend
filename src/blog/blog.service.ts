@@ -194,7 +194,8 @@ export class BlogService {
       post.coverImageMimetype = incomingCoverMimetype;
       post.coverImageOriginalName = incomingCoverOriginalName;
     }
-    if (!post.coverImageData || !post.coverImageMimetype || !post.coverImageOriginalName) {
+
+    if (!post.coverImageMimetype || !post.coverImageOriginalName) {
       throw new BadRequestException('Cover image is required');
     }
 
