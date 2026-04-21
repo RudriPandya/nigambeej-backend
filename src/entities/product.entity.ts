@@ -37,6 +37,9 @@ export class Product {
   @Column({ name: 'is_featured', default: false })
   isFeatured: boolean;
 
+  @Column({ name: 'is_practisys', default: false })
+  isPractisys: boolean;
+
   @OneToMany(() => ProductTranslation, (t) => t.product, { cascade: true })
   translations: ProductTranslation[];
 }

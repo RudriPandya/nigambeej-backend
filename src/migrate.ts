@@ -64,6 +64,52 @@ async function run() {
   `);
   console.log('✓ Table admin_users ready');
 
+  // ── Step 3.1: ensure product practice columns exist ──
+  const ensureColumn = async (
+    tableName: string,
+    columnName: string,
+    columnDefinition: string,
+  ) => {
+    const [columnRows] = await conn.execute<mysql.RowDataPacket[]>(
+      `
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ?
+          AND TABLE_NAME = ?
+          AND COLUMN_NAME = ?
+        LIMIT 1
+      `,
+      [DB_NAME, tableName, columnName],
+    );
+    if (columnRows.length > 0) return;
+    await conn.execute(`ALTER TABLE \`${tableName}\` ADD COLUMN ${columnDefinition}`);
+    console.log(`✓ Column ${tableName}.${columnName} added`);
+  };
+
+  await ensureColumn('products', 'is_practisys', '`is_practisys` TINYINT(1) NOT NULL DEFAULT 0');
+  await ensureColumn(
+    'product_translations',
+    'practice_description',
+    '`practice_description` TEXT NULL',
+  );
+
+  // Backfill from older column name if it exists.
+  const [legacyPracticeCol] = await conn.execute<mysql.RowDataPacket[]>(
+    `
+      SELECT COLUMN_NAME
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = 'products'
+        AND COLUMN_NAME = 'is_practice'
+      LIMIT 1
+    `,
+    [DB_NAME],
+  );
+  if (legacyPracticeCol.length > 0) {
+    await conn.execute('UPDATE `products` SET `is_practisys` = `is_practice` WHERE `is_practisys` = 0');
+    console.log('✓ Backfilled products.is_practisys from legacy is_practice');
+  }
+
   // ── Step 4: seed admin user ──
   const [rows] = await conn.execute<mysql.RowDataPacket[]>(
     'SELECT id FROM admin_users WHERE email = ? LIMIT 1',

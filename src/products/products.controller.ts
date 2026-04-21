@@ -7,7 +7,7 @@ import type { Response } from 'express';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { createMulterStorage, imageFileFilter, MAX_IMAGE_SIZE } from '../common/multer.config';
-import { CreateProductDto, UpdateProductDto } from './product.dto';
+import { CreateProductDto, UpdateProductDto, UpsertPracticeDto } from './product.dto';
 
 @Controller()
 export class ProductsController {
@@ -43,6 +43,16 @@ export class ProductsController {
     return this.service.findBySlug(slug, lang);
   }
 
+  @Get('practices')
+  getPractices(@Query('lang') lang: string) {
+    return this.service.findPractices(lang);
+  }
+
+  @Get('practices/:slug')
+  getPracticeBySlug(@Param('slug') slug: string, @Query('lang') lang: string) {
+    return this.service.findPracticeBySlug(slug, lang);
+  }
+
   @Get('products/:id/image')
   async getImage(@Param('id') id: string, @Res() res: Response) {
     const product = await this.service.findOneWithImage(+id);
@@ -68,6 +78,39 @@ export class ProductsController {
     const page = Math.max(1, parseInt(String(pageRaw ?? '1'), 10) || 1);
     const limit = Math.min(1000, Math.max(1, parseInt(String(limitRaw ?? '10'), 10) || 10));
     return this.service.findAllAdmin(page, limit);
+  }
+
+  @Get('admin/practices/candidates')
+  @UseGuards(JwtAuthGuard)
+  practiceCandidates(@Query('lang') lang: string) {
+    return this.service.findPracticeCandidates(lang || 'en');
+  }
+
+  @Get('admin/practices')
+  @UseGuards(JwtAuthGuard)
+  adminPractices(@Query('lang') lang: string) {
+    return this.service.findAllPracticesAdmin(lang || 'en');
+  }
+
+  @Post('admin/practices')
+  @UseGuards(JwtAuthGuard)
+  createPractice(@Body() body: UpsertPracticeDto) {
+    return this.service.createPractice(body as unknown as Record<string, unknown>);
+  }
+
+  @Put('admin/practices/:id')
+  @UseGuards(JwtAuthGuard)
+  updatePractice(@Param('id') id: string, @Body() body: UpsertPracticeDto) {
+    return this.service.updatePractice(
+      +id,
+      { ...(body as unknown as Record<string, unknown>), productId: +id },
+    );
+  }
+
+  @Delete('admin/practices/:id')
+  @UseGuards(JwtAuthGuard)
+  removePractice(@Param('id') id: string) {
+    return this.service.removePractice(+id);
   }
 
   @Post('admin/products')

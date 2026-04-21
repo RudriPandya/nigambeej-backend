@@ -21,4 +21,7 @@ export class ProductTranslation {
 
   @Column({ name: 'detail_intro', type: 'text', nullable: true })
   detailIntro: string | null;
+
+  @Column({ name: 'practice_description', type: 'text', nullable: true })
+  practiceDescription: string | null;
 }

@@ -23,6 +23,7 @@ export class ProductTranslationDto {
   @IsString()
   @MaxLength(5000, { message: 'Description must not exceed 5000 characters' })
   description?: string;
+
 }
 
 export class CreateProductDto {
@@ -68,7 +69,7 @@ export class CreateProductDto {
   /** Multipart nested fields or JSON string — must pass ValidationPipe whitelist */
   @IsOptional()
   @Allow()
-  translations?: Record<string, { name?: string; description?: string }> | string;
+  translations?: Record<string, { name?: string; description?: string; detailIntro?: string }> | string;
 }
 
 export class UpdateProductDto {
@@ -113,5 +114,23 @@ export class UpdateProductDto {
 
   @IsOptional()
   @Allow()
-  translations?: Record<string, { name?: string; description?: string }> | string;
+  translations?: Record<string, { name?: string; description?: string; detailIntro?: string }> | string;
+}
+
+export class PracticeTranslationInputDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(20000, { message: 'Practice description must not exceed 20000 characters' })
+  practiceDescription?: string;
+}
+
+export class UpsertPracticeDto {
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber({}, { message: 'Product id must be a number' })
+  productId?: number;
+
+  @IsOptional()
+  @Allow()
+  translations?: Record<string, { practiceDescription?: string }> | string;
 }

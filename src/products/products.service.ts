@@ -7,6 +7,12 @@ import { Category } from '../entities/category.entity';
 import { Subcategory } from '../entities/subcategory.entity';
 
 const LANGS = ['en', 'hi', 'gu'] as const;
+type ProductTranslationInput = {
+  name?: string;
+  description?: string;
+  detailIntro?: string;
+};
+type PracticeTranslationInput = { practiceDescription?: string };
 
 @Injectable()
 export class ProductsService {
@@ -52,18 +58,18 @@ export class ProductsService {
 
   private parseTranslationsNested(
     data: Record<string, unknown>,
-  ): Record<string, { name?: string; description?: string }> | null {
+  ): Record<string, ProductTranslationInput> | null {
     const t = data.translations;
     if (t === undefined || t === null) return null;
     if (typeof t === 'string') {
       try {
-        const p = JSON.parse(t) as Record<string, { name?: string; description?: string }>;
+        const p = JSON.parse(t) as Record<string, ProductTranslationInput>;
         return typeof p === 'object' && p !== null ? p : null;
       } catch {
         return null;
       }
     }
-    if (typeof t === 'object') return t as Record<string, { name?: string; description?: string }>;
+    if (typeof t === 'object') return t as Record<string, ProductTranslationInput>;
     return null;
   }
 
@@ -94,13 +100,14 @@ export class ProductsService {
 
   private async saveProductTranslations(
     product: Product,
-    translations: Record<string, { name?: string; description?: string }>,
+    translations: Record<string, ProductTranslationInput>,
   ): Promise<void> {
     for (const lang of LANGS) {
       const row = translations[lang];
       if (!row) continue;
       const name = (row.name ?? '').trim();
       const description = (row.description ?? '').trim();
+      const detailIntro = (row.detailIntro ?? '').trim();
       if (lang !== 'en' && !name) continue;
       if (lang === 'en' && !name) {
         throw new BadRequestException('English product name is required');
@@ -109,10 +116,176 @@ export class ProductsService {
         where: { product: { id: product.id }, lang },
       });
       if (!existing) {
-        existing = this.transRepo.create({ product, lang, name: '', description: null });
+        existing = this.transRepo.create({
+          product,
+          lang,
+          name: '',
+          description: null,
+          detailIntro: null,
+        });
       }
       existing.name = name;
       existing.description = description || null;
+      existing.detailIntro = detailIntro || null;
+      await this.transRepo.save(existing);
+    }
+  }
+
+  private parsePracticeTranslationsNested(
+    data: Record<string, unknown>,
+  ): Record<string, PracticeTranslationInput> | null {
+    const t = data.translations;
+    if (t === undefined || t === null) return null;
+    if (typeof t === 'string') {
+      try {
+        const p = JSON.parse(t) as Record<string, PracticeTranslationInput>;
+        return typeof p === 'object' && p !== null ? p : null;
+      } catch {
+        return null;
+      }
+    }
+    if (typeof t === 'object') return t as Record<string, PracticeTranslationInput>;
+    return null;
+  }
+
+  async findPracticeCandidates(lang = 'en') {
+    const products = await this.productRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.translations', 'pt', 'pt.lang = :lang', { lang })
+      .where('p.isActive = true')
+      .andWhere('p.isPractisys = false')
+      .orderBy('p.sortOrder', 'DESC')
+      .addOrderBy('p.id', 'DESC')
+      .getMany();
+
+    return products.map((p) => {
+      const t = p.translations?.find((tr) => tr.lang === lang);
+      return { id: p.id, slug: p.slug, name: t?.name ?? p.slug };
+    });
+  }
+
+  async findAllPracticesAdmin(lang = 'en') {
+    const products = await this.productRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.translations', 'pt')
+      .where('p.isActive = true')
+      .andWhere('p.isPractisys = true')
+      .orderBy('p.sortOrder', 'DESC')
+      .addOrderBy('p.id', 'DESC')
+      .getMany();
+    return products.map((p) => this.formatPracticeAdmin(p, lang));
+  }
+
+  private formatPracticeAdmin(p: Product, lang: string) {
+    const localizedName = p.translations?.find((tr) => tr.lang === lang)?.name ?? p.slug;
+    return {
+      id: p.id,
+      slug: p.slug,
+      imageUrl: `/api/products/${p.id}/image`,
+      name: localizedName,
+      translations: LANGS.map((code) => {
+        const tr = p.translations?.find((x) => x.lang === code);
+        return { lang: code, practiceDescription: tr?.practiceDescription ?? '' };
+      }),
+    };
+  }
+
+  async createPractice(data: Record<string, unknown>) {
+    const productId = Number(data.productId);
+    if (!productId || Number.isNaN(productId)) {
+      throw new BadRequestException('Product id is required');
+    }
+
+    const product = await this.productRepo.findOne({
+      where: { id: productId, isActive: true },
+      relations: ['translations'],
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.isPractisys) throw new BadRequestException('Product is already added as practice');
+
+    const translationsPayload = this.parsePracticeTranslationsNested(data);
+    if (!translationsPayload) {
+      throw new BadRequestException('Practice translations are required');
+    }
+    const enPractice = (translationsPayload.en?.practiceDescription ?? '').trim();
+    if (!enPractice) throw new BadRequestException('English practice description is required');
+
+    product.isPractisys = true;
+    await this.productRepo.save(product);
+    await this.savePracticeTranslations(product, translationsPayload);
+
+    const fresh = await this.productRepo.findOne({
+      where: { id: product.id },
+      relations: ['translations'],
+    });
+    if (!fresh) throw new NotFoundException('Practice not found after save');
+    return this.formatPracticeAdmin(fresh, 'en');
+  }
+
+  async updatePractice(id: number, data: Record<string, unknown>) {
+    const product = await this.productRepo.findOne({
+      where: { id, isActive: true },
+      relations: ['translations'],
+    });
+    if (!product) throw new NotFoundException('Practice not found');
+    if (!product.isPractisys) throw new BadRequestException('Product is not marked as practice');
+
+    const translationsPayload = this.parsePracticeTranslationsNested(data);
+    if (!translationsPayload) {
+      throw new BadRequestException('Practice translations are required');
+    }
+    const enPractice = (translationsPayload.en?.practiceDescription ?? '').trim();
+    if (!enPractice) throw new BadRequestException('English practice description is required');
+
+    await this.savePracticeTranslations(product, translationsPayload);
+
+    const fresh = await this.productRepo.findOne({
+      where: { id: product.id },
+      relations: ['translations'],
+    });
+    if (!fresh) throw new NotFoundException('Practice not found after update');
+    return this.formatPracticeAdmin(fresh, 'en');
+  }
+
+  async removePractice(id: number) {
+    const product = await this.productRepo.findOne({
+      where: { id, isActive: true },
+      relations: ['translations'],
+    });
+    if (!product) throw new NotFoundException('Practice not found');
+
+    product.isPractisys = false;
+    await this.productRepo.save(product);
+
+    for (const tr of product.translations ?? []) {
+      tr.practiceDescription = null;
+      await this.transRepo.save(tr);
+    }
+    return { id: product.id, isPractisys: product.isPractisys };
+  }
+
+  private async savePracticeTranslations(
+    product: Product,
+    translations: Record<string, PracticeTranslationInput>,
+  ): Promise<void> {
+    for (const lang of LANGS) {
+      const row = translations[lang];
+      if (!row) continue;
+      const practiceDescription = (row.practiceDescription ?? '').trim();
+      let existing = await this.transRepo.findOne({
+        where: { product: { id: product.id }, lang },
+      });
+      if (!existing) {
+        existing = this.transRepo.create({
+          product,
+          lang,
+          name: lang === 'en' ? product.slug : '',
+          description: null,
+          detailIntro: null,
+          practiceDescription: null,
+        });
+      }
+      existing.practiceDescription = practiceDescription || null;
       await this.transRepo.save(existing);
     }
   }
@@ -172,6 +345,22 @@ export class ProductsService {
     return products.map((p) => this.format(p, lang));
   }
 
+  async findPractices(lang = 'en') {
+    const qb = this.productRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.translations', 'pt', 'pt.lang = :lang', { lang })
+      .leftJoinAndSelect('p.category', 'c')
+      .leftJoinAndSelect('c.translations', 'ct', 'ct.lang = :lang', { lang })
+      .leftJoinAndSelect('p.subcategory', 's')
+      .leftJoinAndSelect('s.translations', 'st', 'st.lang = :lang', { lang })
+      .where('p.isActive = true')
+      .andWhere('p.isPractisys = true')
+      .orderBy('p.sortOrder', 'DESC')
+      .addOrderBy('p.id', 'DESC');
+    const practices = await qb.getMany();
+    return practices.map((p) => this.format(p, lang));
+  }
+
   async toggleFeatured(id: number) {
     const product = await this.productRepo.findOne({ where: { id } });
     if (!product) throw new NotFoundException('Product not found');
@@ -195,6 +384,23 @@ export class ProductsService {
     if (!p) throw new NotFoundException('Product not found');
     // Use `format` (not `formatAll`) so the JSON matches list/featured items: top-level `name`,
     // `description`, and `detailIntro` for the requested `lang`. The detail page expects this shape.
+    return this.format(p, lang);
+  }
+
+  async findPracticeBySlug(slug: string, lang = 'en') {
+    const p = await this.productRepo
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.translations', 'pt')
+      .leftJoinAndSelect('p.category', 'c')
+      .leftJoinAndSelect('c.translations', 'ct')
+      .leftJoinAndSelect('p.subcategory', 's')
+      .leftJoinAndSelect('s.translations', 'st')
+      .where('p.slug = :slug', { slug })
+      .andWhere('p.isActive = true')
+      .andWhere('p.isPractisys = true')
+      .getOne();
+
+    if (!p) throw new NotFoundException('Practice not found');
     return this.format(p, lang);
   }
 
@@ -286,6 +492,7 @@ export class ProductsService {
       imageOriginalName,
       isActive: true,
       isFeatured: data.isFeatured === true || data.isFeatured === 'true',
+      isPractisys: false,
     });
     product.category = { id: categoryId } as Category;
     product.subcategory = { id: subcategoryId } as Subcategory;
@@ -302,7 +509,11 @@ export class ProductsService {
   async update(id: number, data: Record<string, unknown>) {
     // Do not load `translations` here: Product has cascade on translations, and saving the parent
     // with loaded children can trigger duplicate/conflicting writes or FK issues with multipart updates.
-    const product = await this.productRepo.findOne({ where: { id } });
+    const product = await this.productRepo
+      .createQueryBuilder('p')
+      .addSelect('p.imageData')
+      .where('p.id = :id', { id })
+      .getOne();
     if (!product) throw new NotFoundException('Product not found');
 
     if (data.slug !== undefined) {
@@ -336,7 +547,6 @@ export class ProductsService {
     if (data.isFeatured !== undefined) {
       product.isFeatured = data.isFeatured === true || data.isFeatured === 'true';
     }
-
     const { categoryId, subcategoryId } = this.parseCategoryIds(data);
     if (categoryId === undefined || subcategoryId === undefined) {
       throw new BadRequestException('Category and subcategory are required');
@@ -401,6 +611,7 @@ export class ProductsService {
       imageUrl: `/api/products/${p.id}/image`,
       sortOrder: p.sortOrder,
       isFeatured: p.isFeatured,
+      isPractisys: p.isPractisys,
       category: p.category
         ? {
             id: p.category.id,
@@ -412,6 +623,7 @@ export class ProductsService {
       name: t?.name ?? p.slug,
       description: t?.description ?? '',
       detailIntro: t?.detailIntro ?? '',
+      practiceDescription: t?.practiceDescription ?? '',
     };
   }
 
