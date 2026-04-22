@@ -15,6 +15,11 @@ export class BlogController {
     return this.service.findAll(lang, +page || 1, +limit || 9);
   }
 
+  @Get('blog/:slug/detail')
+  getBySlug(@Param('slug') slug: string, @Query('lang') lang: string) {
+    return this.service.findBySlug(slug, lang || 'en');
+  }
+
   @Get('blog/:id/image')
   async getImage(@Param('id') id: string, @Res() res: Response) {
     const post = await this.service.findOneAdminWithImage(+id);
