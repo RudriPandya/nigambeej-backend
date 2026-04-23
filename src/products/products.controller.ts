@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query,
-  UseGuards, UseInterceptors, UploadedFile, Patch, Res,
+  UseGuards, UseInterceptors, UploadedFile, Patch, Res, BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
@@ -66,6 +66,19 @@ export class ProductsController {
     res.send(product.imageData);
   }
 
+  @Get('products/:id/practice-image')
+  async getPracticeImage(@Param('id') id: string, @Res() res: Response) {
+    const product = await this.service.findOneWithPracticeImage(+id);
+    if (!product || !product.practiceImageData) {
+      return res.status(404).send('Practice image not found');
+    }
+    res.set({
+      'Content-Type': product.practiceImageMimetype,
+      'Content-Disposition': `inline; filename="${product.practiceImageOriginalName}"`,
+    });
+    res.send(product.practiceImageData);
+  }
+
   @Get('categories')
   getCategories(@Query('lang') lang: string) {
     return this.service.getCategories(lang);
@@ -111,6 +124,20 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard)
   removePractice(@Param('id') id: string) {
     return this.service.removePractice(+id);
+  }
+
+  @Put('admin/practices/:id/image')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('image', { storage: createMulterStorage(), fileFilter: imageFileFilter, limits: { fileSize: MAX_IMAGE_SIZE } }))
+  async uploadPracticeImage(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Image file is required');
+    }
+    await this.service.updatePracticeImage(+id, file.buffer, file.mimetype, file.originalname);
+    return { ok: true };
   }
 
   @Post('admin/products')

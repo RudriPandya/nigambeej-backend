@@ -181,7 +181,7 @@ export class ProductsService {
     return {
       id: p.id,
       slug: p.slug,
-      imageUrl: `/api/products/${p.id}/image`,
+      imageUrl: p.practiceImageMimetype ? `/api/products/${p.id}/practice-image` : `/api/products/${p.id}/image`,
       name: localizedName,
       translations: LANGS.map((code) => {
         const tr = p.translations?.find((x) => x.lang === code);
@@ -298,6 +298,37 @@ export class ProductsService {
     return this.productRepo.findOne({ where: { id, isActive: true }, select: ['id', 'imageData', 'imageMimetype', 'imageOriginalName', 'slug', 'sortOrder', 'isActive'] });
   }
 
+  async findOneWithPracticeImage(id: number) {
+    return this.productRepo.findOne({
+      where: { id, isActive: true, isPractisys: true },
+      select: [
+        'id',
+        'practiceImageData',
+        'practiceImageMimetype',
+        'practiceImageOriginalName',
+        'slug',
+        'sortOrder',
+        'isActive',
+        'isPractisys',
+      ],
+    });
+  }
+
+  async updatePracticeImage(
+    id: number,
+    practiceImageData: Buffer,
+    practiceImageMimetype: string,
+    practiceImageOriginalName: string,
+  ) {
+    const practice = await this.productRepo.findOne({ where: { id, isActive: true, isPractisys: true } });
+    if (!practice) throw new NotFoundException('Practice not found');
+    await this.productRepo.update(id, {
+      practiceImageData,
+      practiceImageMimetype,
+      practiceImageOriginalName,
+    });
+  }
+
   async findAll(lang = 'en', category?: string, subcategory?: string, page?: number, limit?: number) {
     const qb = this.productRepo
       .createQueryBuilder('p')
@@ -358,7 +389,7 @@ export class ProductsService {
       .orderBy('p.sortOrder', 'DESC')
       .addOrderBy('p.id', 'DESC');
     const practices = await qb.getMany();
-    return practices.map((p) => this.format(p, lang));
+    return practices.map((p) => this.formatPractice(p, lang));
   }
 
   async toggleFeatured(id: number) {
@@ -401,7 +432,7 @@ export class ProductsService {
       .getOne();
 
     if (!p) throw new NotFoundException('Practice not found');
-    return this.format(p, lang);
+    return this.formatPractice(p, lang);
   }
 
   /**
@@ -617,6 +648,30 @@ export class ProductsService {
             id: p.category.id,
             slug: p.category.slug,
             name: p.category.translations?.find((t) => t.lang === lang)?.name ?? p.category.slug,
+          }
+        : null,
+      subcategory: p.subcategory ? { id: p.subcategory.id, slug: p.subcategory.slug } : null,
+      name: t?.name ?? p.slug,
+      description: t?.description ?? '',
+      detailIntro: t?.detailIntro ?? '',
+      practiceDescription: t?.practiceDescription ?? '',
+    };
+  }
+
+  private formatPractice(p: Product, lang: string) {
+    const t = p.translations?.find((tr) => tr.lang === lang);
+    return {
+      id: p.id,
+      slug: p.slug,
+      imageUrl: p.practiceImageMimetype ? `/api/products/${p.id}/practice-image` : `/api/products/${p.id}/image`,
+      sortOrder: p.sortOrder,
+      isFeatured: p.isFeatured,
+      isPractisys: p.isPractisys,
+      category: p.category
+        ? {
+            id: p.category.id,
+            slug: p.category.slug,
+            name: p.category.translations?.find((tr) => tr.lang === lang)?.name ?? p.category.slug,
           }
         : null,
       subcategory: p.subcategory ? { id: p.subcategory.id, slug: p.subcategory.slug } : null,

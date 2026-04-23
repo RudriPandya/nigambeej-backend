@@ -28,6 +28,15 @@ export class Product {
   @Column({ name: 'image_original_name', nullable: true })
   imageOriginalName: string;
 
+  @Column({ name: 'practice_image_data', type: 'longblob', nullable: true, select: false })
+  practiceImageData: Buffer;
+
+  @Column({ name: 'practice_image_mimetype', nullable: true })
+  practiceImageMimetype: string;
+
+  @Column({ name: 'practice_image_original_name', nullable: true })
+  practiceImageOriginalName: string;
+
   @Column({ name: 'sort_order', default: 0 })
   sortOrder: number;
 

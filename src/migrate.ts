@@ -88,6 +88,21 @@ async function run() {
 
   await ensureColumn('products', 'is_practisys', '`is_practisys` TINYINT(1) NOT NULL DEFAULT 0');
   await ensureColumn(
+    'products',
+    'practice_image_data',
+    '`practice_image_data` LONGBLOB NULL',
+  );
+  await ensureColumn(
+    'products',
+    'practice_image_mimetype',
+    '`practice_image_mimetype` VARCHAR(255) NULL',
+  );
+  await ensureColumn(
+    'products',
+    'practice_image_original_name',
+    '`practice_image_original_name` VARCHAR(255) NULL',
+  );
+  await ensureColumn(
     'product_translations',
     'practice_description',
     '`practice_description` TEXT NULL',
@@ -109,6 +124,18 @@ async function run() {
     await conn.execute('UPDATE `products` SET `is_practisys` = `is_practice` WHERE `is_practisys` = 0');
     console.log('✓ Backfilled products.is_practisys from legacy is_practice');
   }
+
+  await conn.execute(`
+    UPDATE \`products\`
+    SET
+      \`practice_image_data\` = \`image_data\`,
+      \`practice_image_mimetype\` = \`image_mimetype\`,
+      \`practice_image_original_name\` = \`image_original_name\`
+    WHERE \`is_practisys\` = 1
+      AND \`practice_image_data\` IS NULL
+      AND \`image_data\` IS NOT NULL
+  `);
+  console.log('✓ Backfilled products.practice_image_* from product image for existing practices');
 
   // ── Step 4: seed admin user ──
   const [rows] = await conn.execute<mysql.RowDataPacket[]>(
